@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisScan Real-Time Security Telemetry Demo</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Custom Cyber Stylesheet -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyber: {
+              bg: '#090d16',
+              card: '#0f172a',
+              border: '#1e293b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#080c14] text-slate-100 min-h-screen cyber-grid flex flex-col">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Brand & Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold tracking-tight text-white text-base">AegisScan</span>
+            <span class="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Telemetry Demo</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 radar-dot"></span>
+            <span>Target: <code class="text-cyan-300 font-mono"><%= config.endpoint %></code></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Auth State & Actions -->
+      <div class="flex items-center gap-3">
+        <div id="user-status-badge">
+          <% if (user) { %>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <i class="fa-solid fa-shield-halved"></i> <%= user.email %> (<%= user.role %>)
+            </span>
+          <% } else { %>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+              <i class="fa-solid fa-user-slash"></i> Anonymous User
+            </span>
+          <% } %>
+        </div>
+
+        <button id="logout-btn" class="<%= user ? '' : 'hidden' %> px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium border border-rose-500/30 transition">
+          <i class="fa-solid fa-right-from-bracket mr-1"></i> Sign Out
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Sub-Header / Tabs Navigation -->
+  <div class="border-b border-slate-800/60 bg-slate-900/40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-2 overflow-x-auto">
+      <button data-tab="overview" onclick="location.hash='#overview'" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition">
+        <i class="fa-solid fa-satellite-dish"></i> Live Telemetry Stream
+      </button>
+      <button data-tab="login" onclick="location.hash='#login'" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition">
+        <i class="fa-solid fa-key"></i> <span id="login-nav-text">Login Portal</span>
+      </button>
+      <button data-tab="admin" onclick="location.hash='#admin'" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition">
+        <i class="fa-solid fa-lock"></i> Protected Admin Vault
+      </button>
+      <button data-tab="search" onclick="location.hash='#search'" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition">
+        <i class="fa-solid fa-magnifying-glass"></i> IDS Query / Search
+      </button>
+      <button data-tab="simulator" onclick="location.hash='#simulator'" class="tab-btn flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition">
+        <i class="fa-solid fa-flask-vial text-amber-400"></i> Attack Simulator
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+
+    <!-- TAB 1: OVERVIEW & TELEMETRY STREAM -->
+    <section id="tab-overview" class="tab-panel space-y-6">
+      <!-- Stats Overview Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="p-5 rounded-2xl glass-panel cyber-glow-cyan">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider">Total Captured Events</span>
+            <i class="fa-solid fa-chart-line text-cyan-400"></i>
+          </div>
+          <p id="count-total-events" class="text-3xl font-black text-white mt-2 font-mono">0</p>
+          <p class="text-xs text-slate-400 mt-1">Real-time security telemetry ring buffer</p>
+        </div>
+
+        <div class="p-5 rounded-2xl glass-panel cyber-glow-rose">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-rose-400 uppercase tracking-wider">High & Critical Threats</span>
+            <i class="fa-solid fa-shield-virus text-rose-400"></i>
+          </div>
+          <p id="count-critical-events" class="text-3xl font-black text-rose-400 mt-2 font-mono">0</p>
+          <p class="text-xs text-slate-400 mt-1">SQLi, XSS, and authorization violations</p>
+        </div>
+
+        <div class="p-5 rounded-2xl glass-panel cyber-glow-emerald">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Dispatched To AegisScan</span>
+            <i class="fa-solid fa-cloud-check text-emerald-400"></i>
+          </div>
+          <p id="count-delivered-events" class="text-3xl font-black text-emerald-400 mt-2 font-mono">0</p>
+          <p class="text-xs text-slate-400 mt-1"><%= config.endpoint %></p>
+        </div>
+      </div>
+
+      <!-- Quick Actions Bar & Live Feed -->
+      <div class="p-6 rounded-2xl glass-panel">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 radar-dot"></span>
+              Live Telemetry Stream
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Capturing real-time payloads sent to AegisScan API <code>/api/security-events</code></p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="location.hash='#simulator'" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs transition shadow-lg shadow-cyan-500/20">
+              <i class="fa-solid fa-bolt mr-1.5"></i> Launch Attack Simulator
+            </button>
+            <button onclick="clearTelemetryEvents()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition">
+              <i class="fa-solid fa-trash-can mr-1"></i> Clear Feed
+            </button>
+          </div>
+        </div>
+
+        <!-- Telemetry Feed Container -->
+        <div id="telemetry-feed" class="mt-4 space-y-3 max-h-[550px] overflow-y-auto pr-1">
+          <div class="py-16 text-center text-slate-500">
+            <i class="fa-solid fa-radar text-4xl mb-3 text-slate-700 animate-spin"></i>
+            <p class="text-sm">Listening for security events...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: LOGIN PORTAL -->
+    <section id="tab-login" class="tab-panel hidden space-y-6">
+      <div class="max-w-xl mx-auto">
+        <div class="p-8 rounded-3xl glass-panel cyber-glow-cyan">
+          
+          <div class="text-center mb-6">
+            <div class="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-2xl mx-auto mb-3">
+              <i class="fa-solid fa-shield-keyhole"></i>
+            </div>
+            <h2 class="text-2xl font-black text-white">Administrative Sign In</h2>
+            <p class="text-xs text-slate-400 mt-1">Failed and successful authentication attempts are piped into AegisScan telemetry.</p>
+          </div>
+
+          <!-- Quick Autofill Helper Buttons -->
+          <div class="mb-6 p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <span class="text-slate-400 font-medium">Quick Test Autofill:</span>
+            <div class="flex items-center gap-2">
+              <button onclick="fillCredentials('admin@company.com', 'SecretPassword123')" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold transition">
+                <i class="fa-solid fa-check mr-1"></i> Valid Admin
+              </button>
+              <button onclick="fillCredentials('admin@company.com', 'WrongPass_999')" class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold transition">
+                <i class="fa-solid fa-xmark mr-1"></i> Invalid Password
+              </button>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <form id="login-form" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Email Address</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <i class="fa-solid fa-envelope"></i>
+                </span>
+                <input type="email" id="login-email" required placeholder="admin@company.com" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition text-sm">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Password</label>
+              <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <i class="fa-solid fa-lock"></i>
+                </span>
+                <input type="password" id="login-password" required placeholder="••••••••••••" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-900/90 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition text-sm">
+              </div>
+            </div>
+
+            <button type="submit" id="login-submit-btn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-sm transition shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In to Account
+            </button>
+          </form>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: ADMIN PROTECTED VAULT -->
+    <section id="tab-admin" class="tab-panel hidden space-y-6">
+      <div class="p-6 rounded-3xl glass-panel">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-vault text-amber-400"></i> Tier-1 Admin Infrastructure Vault
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Route: <code>GET /admin</code> & <code>GET /api/admin/data</code></p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="loadAdminPortalData()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+              <i class="fa-solid fa-rotate mr-1"></i> Re-test Authorization
+            </button>
+          </div>
+        </div>
+
+        <div id="admin-content-area" class="mt-6">
+          <!-- Dynamically populated via AJAX -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: IDS SEARCH / QUERY -->
+    <section id="tab-search" class="tab-panel hidden space-y-6">
+      <div class="p-6 rounded-3xl glass-panel">
+        <div class="max-w-2xl mx-auto text-center mb-6">
+          <h2 class="text-2xl font-black text-white">Catalog Query & IDS Inspector</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            The <code>/api/search</code> endpoint analyzes queries with inline IDS signatures. Malicious payloads (SQLi / XSS) trigger critical telemetry alerts.
+          </p>
+        </div>
+
+        <!-- Quick Payload Pills -->
+        <div class="max-w-3xl mx-auto mb-6 p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Click to test instant attack signatures:</p>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setSearchQuery('\' OR \'1\'=\'1')" class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-mono transition">
+              <i class="fa-solid fa-bug mr-1"></i> ' OR '1'='1 (SQLi)
+            </button>
+            <button onclick="setSearchQuery('\' UNION SELECT username, password_hash FROM users--')" class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-mono transition">
+              <i class="fa-solid fa-database mr-1"></i> UNION SELECT (SQLi)
+            </button>
+            <button onclick="setSearchQuery('<script>alert(document.cookie)</script>')" class="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono transition">
+              <i class="fa-solid fa-code mr-1"></i> &lt;script&gt;alert(1)&lt;/script&gt; (XSS)
+            </button>
+            <button onclick="setSearchQuery('<img src=x onerror=alert(1)>')" class="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-mono transition">
+              <i class="fa-solid fa-code mr-1"></i> &lt;img onerror&gt; (XSS)
+            </button>
+            <button onclick="setSearchQuery('Aegis Sentinel')" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono transition">
+              <i class="fa-solid fa-check mr-1"></i> "Aegis Sentinel" (Benign)
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Input Bar -->
+        <form id="search-form" class="max-w-3xl mx-auto mb-8">
+          <div class="relative flex items-center">
+            <span class="absolute left-4 text-slate-500 text-lg">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+            <input type="text" id="search-input" placeholder="Search product catalog or enter attack payload..." class="w-full pl-12 pr-28 py-4 rounded-2xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition text-sm">
+            <button type="submit" class="absolute right-2.5 px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition">
+              Execute
+            </button>
+          </div>
+        </form>
+
+        <!-- Search Results / Intercept Feedback Container -->
+        <div id="search-results" class="max-w-3xl mx-auto">
+          <div class="py-12 text-center text-slate-500">
+            <i class="fa-solid fa-database text-3xl mb-2 text-slate-700"></i>
+            <p class="text-sm">Enter a search query or pick a sample attack payload above.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 5: ATTACK SIMULATION STUDIO -->
+    <section id="tab-simulator" class="tab-panel hidden space-y-6">
+      <div class="p-6 rounded-3xl glass-panel">
+        
+        <div class="max-w-2xl mx-auto text-center mb-8">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold uppercase tracking-wider mb-2">
+            <i class="fa-solid fa-vial-virus"></i> Security Sandbox
+          </div>
+          <h2 class="text-2xl font-black text-white">Live Attack Simulator Panel</h2>
+          <p class="text-xs text-slate-400 mt-1">
+            Instantly fire structured attack vectors to test your AegisScan incident response and anomaly telemetry pipelines.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+          <!-- Card 1: Brute Force -->
+          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-users-slash"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Simulate Brute Force Attack</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Fires 6 rapid failed authentication attempts with varying user credentials to test credential-stuffing heuristics.
+              </p>
+            </div>
+            <button id="sim-btn-brute-force" onclick="triggerSimulation('brute-force')" class="w-full py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i> Fire 6x Failed Logins
+            </button>
+          </div>
+
+          <!-- Card 2: SQL Injection -->
+          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-database"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Simulate SQL Injection Probe</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Dispatches a high-severity union-based SQL injection string targeting the database search schema.
+              </p>
+            </div>
+            <button id="sim-btn-sqli" onclick="triggerSimulation('sqli')" class="w-full py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs border border-rose-500/40 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i> Dispatch SQLi Probe
+            </button>
+          </div>
+
+          <!-- Card 3: Unauthorized Access (BOLA) -->
+          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-door-closed"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Simulate Unauthorized Access</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Simulates an anonymous attacker attempting to probe <code>/api/admin/financial-records</code> without a valid session.
+              </p>
+            </div>
+            <button id="sim-btn-unauthorized" onclick="triggerSimulation('unauthorized')" class="w-full py-2.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 font-bold text-xs border border-purple-500/40 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i> Trigger BOLA Probe
+            </button>
+          </div>
+
+          <!-- Card 4: Rate Limit Burst -->
+          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-gauge-high"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Simulate Rate Limit Burst</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Floods the endpoint with 10 high-frequency API requests in milliseconds to trigger rate limiting & DoS telemetry.
+              </p>
+            </div>
+            <button id="sim-btn-rate-limit" onclick="triggerSimulation('rate-limit')" class="w-full py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold text-xs border border-cyan-500/40 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i> Flood 10x Burst
+            </button>
+          </div>
+
+          <!-- Card 5: Cross-Site Scripting (XSS) -->
+          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 hover:border-cyan-500/40 transition flex flex-col justify-between">
+            <div>
+              <div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-code"></i>
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">Simulate XSS Attack</h3>
+              <p class="text-xs text-slate-400 leading-relaxed mb-4">
+                Injects a simulated cookie exfiltration script tag to verify script sanitization and WAF alerting.
+              </p>
+            </div>
+            <button id="sim-btn-xss" onclick="triggerSimulation('xss')" class="w-full py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-bold text-xs border border-rose-500/40 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-play"></i> Dispatch XSS Attack
+            </button>
+          </div>
+
+          <!-- Summary / Status card -->
+          <div class="p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase mb-2">
+                <i class="fa-solid fa-tower-broadcast"></i> Telemetry Dispatcher
+              </div>
+              <h3 class="text-base font-bold text-white mb-1">SDK Pipeline Active</h3>
+              <p class="text-xs text-slate-400 mb-3">
+                All attack vectors generate structured JSON telemetry including source IP, severity level, endpoint, and mitigation status.
+              </p>
+            </div>
+            <button onclick="location.hash='#overview'" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition">
+              <i class="fa-solid fa-list-ul mr-1.5"></i> View Event Stream
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Telemetry Payload JSON Modal -->
+  <div id="payload-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-code text-cyan-400"></i>
+          <h3 class="text-sm font-bold text-white">Dispatched Telemetry Payload</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="copyPayloadJson()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono text-cyan-300 border border-slate-700 transition">
+            <i class="fa-regular fa-copy mr-1"></i> Copy
+          </button>
+          <button onclick="closePayloadModal()" class="text-slate-400 hover:text-white text-lg">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1">
+        <pre id="modal-payload-content" class="bg-black/60 p-4 rounded-2xl text-xs font-mono text-emerald-400 border border-slate-800/80 overflow-x-auto"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/60 bg-slate-950/60 py-4 text-center text-xs text-slate-500">
+    <p>AegisScan Real-Time Telemetry Demo &bull; Node.js & Express &bull; Port <%= process.env.PORT || 4000 %></p>
+  </footer>
+
+  <!-- Client Application Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
