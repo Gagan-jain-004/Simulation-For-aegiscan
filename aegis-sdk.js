@@ -114,7 +114,7 @@ class AegisScanClient {
    * Trigger when user successfully logs in
    */
   async loginSuccess({ userId, sourceIp, endpoint = '/login', metadata = {} }) {
-    return this.sendEvent('AUTH_LOGIN_SUCCESS', {
+    return this.sendEvent('LOGIN_SUCCESS', {
       userId,
       sourceIp,
       endpoint,
@@ -129,7 +129,7 @@ class AegisScanClient {
    * Trigger when login attempt fails
    */
   async loginFailed({ userId, sourceIp, endpoint = '/login', metadata = {} }) {
-    return this.sendEvent('AUTH_LOGIN_FAILED', {
+    return this.sendEvent('LOGIN_FAILED', {
       userId,
       sourceIp,
       endpoint,
@@ -144,7 +144,7 @@ class AegisScanClient {
    * Trigger when unauthorized access is attempted on protected route
    */
   async unauthorizedAccess({ userId = 'anonymous', sourceIp, endpoint = '/admin', metadata = {} }) {
-    return this.sendEvent('ACCESS_UNAUTHORIZED', {
+    return this.sendEvent('UNAUTHORIZED_ACCESS', {
       userId,
       sourceIp,
       endpoint,
@@ -159,7 +159,7 @@ class AegisScanClient {
    * Trigger when valid admin privileges are exercised
    */
   async adminAccess({ userId, sourceIp, endpoint = '/admin', metadata = {} }) {
-    return this.sendEvent('ADMIN_PORTAL_ACCESSED', {
+    return this.sendEvent('ADMIN_ACCESS', {
       userId,
       sourceIp,
       endpoint,
@@ -171,17 +171,47 @@ class AegisScanClient {
   }
 
   /**
-   * Trigger on suspicious input, SQLi, XSS or malicious payload
+   * Trigger on SQL Injection pattern detection
    */
-  async suspiciousRequest({ userId = 'anonymous', sourceIp, endpoint = '/search', metadata = {} }) {
-    return this.sendEvent('INJECTION_ATTEMPT_DETECTED', {
+  async sqliDetected({ userId = 'anonymous', sourceIp, endpoint = '/search', metadata = {} }) {
+    return this.sendEvent('SQLI_PATTERN_DETECTED', {
       userId,
       sourceIp,
       endpoint,
       severity: 'CRITICAL',
       status: 'blocked',
       action: 'BLOCK_AND_ISOLATE',
-      metadata: { reason: 'High-confidence attack signature detected in request input', ...metadata }
+      metadata: { reason: 'SQL Injection signature detected in request input', ...metadata }
+    });
+  }
+
+  /**
+   * Trigger on Cross-Site Scripting (XSS) pattern detection
+   */
+  async xssDetected({ userId = 'anonymous', sourceIp, endpoint = '/search', metadata = {} }) {
+    return this.sendEvent('XSS_PATTERN_DETECTED', {
+      userId,
+      sourceIp,
+      endpoint,
+      severity: 'CRITICAL',
+      status: 'blocked',
+      action: 'BLOCK_AND_ISOLATE',
+      metadata: { reason: 'XSS attack vector detected in request input', ...metadata }
+    });
+  }
+
+  /**
+   * Trigger on generic suspicious request
+   */
+  async suspiciousRequest({ userId = 'anonymous', sourceIp, endpoint = '/search', metadata = {} }) {
+    return this.sendEvent('SUSPICIOUS_REQUEST', {
+      userId,
+      sourceIp,
+      endpoint,
+      severity: 'HIGH',
+      status: 'flagged',
+      action: 'CHALLENGE',
+      metadata: { reason: 'Anomalous request signature detected', ...metadata }
     });
   }
 
@@ -189,7 +219,7 @@ class AegisScanClient {
    * Trigger on anomalous request burst / rate limit violation
    */
   async rateLimitBurst({ userId = 'anonymous', sourceIp, endpoint = '/api', metadata = {} }) {
-    return this.sendEvent('RATE_LIMIT_EXCEEDED', {
+    return this.sendEvent('RATE_LIMIT_TRIGGERED', {
       userId,
       sourceIp,
       endpoint,
